@@ -5,16 +5,13 @@ import com.fazecast.jSerialComm.SerialPort;
 public class Program {
 
     public static void main(String[] args) {
-        SerialPort[] ports = SerialPort.getCommPorts();
-        SerialPort port = ports[2];
-        port.setComPortParameters(115200, 8, 1, 0);
-        port.openPort();
 
-        ProtoManager manager = new ProtoManager(port);
-        manager.connect();
-        System.out.println("Connect done");
+        PosICReader icReader = new PosICReader();
+        icReader.open("/dev/tty.usbserial-AH01SKWE");
 
-        manager.sendCommand(2); // power on card
-        System.out.println("Power ON done");
+        APDU apdu = new APDU();
+        byte[] selectAPPResp = icReader.processAPDU(apdu.selectApplication("NEWPOS-CARD"));
+        apdu.setSW(selectAPPResp);
+        int status = apdu.statusSW();
     }
 }
