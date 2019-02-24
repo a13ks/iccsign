@@ -1,7 +1,5 @@
 package org.a13ks.iccsign;
 
-import com.fazecast.jSerialComm.SerialPort;
-
 public class Program {
 
     public static void main(String[] args) {

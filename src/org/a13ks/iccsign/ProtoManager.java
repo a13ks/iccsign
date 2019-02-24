@@ -49,19 +49,23 @@ public class ProtoManager {
             int seq = getNewSequence();
             pkt.setSequence(seq);
             pkt.calcCheckSum();
-            this.serialPort.writeBytes(translated(pkt.getBytes()), pkt.getBytes().length);
+
+            byte[] translated_bytes = translated(pkt.getBytes());
+            serialPort.writeBytes(translated_bytes, translated_bytes.length);
 
             while (retry-- > 0) {
                 int bytes = serialPort.bytesAvailable();
+
                 if (bytes > 0) {
                     byte[] buffer = new byte[bytes];
+                    serialPort.readBytes(buffer, bytes);
                     callBack(buffer);
-                }
-                        
-                try {
-                    wait(this.timeout * 3000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
+                } else {
+                    try {
+                        wait(this.timeout * 3000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }	
                 }
                 
                 if (this.rQueue.isEmpty()) {

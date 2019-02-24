@@ -72,9 +72,9 @@ public class APDU
         byte[] head = { 0, -92, 4 };
         byte[] lc = { appNameLen };
         byte[] data = appName.getBytes();
-        System.arraycopy(head, 0, selectApdu, 0, 4);
-        System.arraycopy(lc, 0, selectApdu, 4, 1);
-        System.arraycopy(data, 0, selectApdu, 5, appNameLen);
+        System.arraycopy(head, 0, selectApdu, 0, 3);
+        System.arraycopy(lc, 0, selectApdu, 3, 1);
+        System.arraycopy(data, 0, selectApdu, 4, appNameLen);
         return selectApdu;
     }
 
