@@ -688,4 +688,17 @@ public class Program {
         hash = digest.digest();
         return hash;
     }
+
+    public static byte[] calcSignSRCHashV01(byte[] fileContent, byte[] signedTail) throws Exception {
+        byte[] hash = null;
+        byte[] signSRC = new byte[fileContent.length + signedTail.length];
+        
+        System.arraycopy(fileContent, 0, signSRC, 0, fileContent.length);
+        System.arraycopy(signedTail, 0, signSRC, fileContent.length, signedTail.length);
+
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        digest.update(signSRC);
+        hash = digest.digest();
+        return hash;
+    }
 }
