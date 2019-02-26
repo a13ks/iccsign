@@ -1,7 +1,11 @@
 package org.a13ks.iccsign;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+
+import com.sun.org.apache.xerces.internal.impl.xpath.regex.ParseException;
 
 public class Program {
 
@@ -539,5 +543,129 @@ public class Program {
             stringBuilder.append(hv);
         }
         return stringBuilder.toString();
+    }
+
+    public static byte[] getSignedTailContent(CustomerInfo customerInfo, FileELF elf) throws Exception {
+        byte[] tail = new byte[255];
+        byte[] type = new byte[4];
+        byte[] cid = customerInfo.getCid();
+        byte[] approvier = customerInfo.getName();
+        byte userID = Byte.parseByte(elf.getUser().replace("User", ""));
+
+        if ("APP".equals(elf.getFileType())) {
+            type = new byte[] { 6, userID, cid[1], cid[0] };
+        } else if ("LIB".equals(elf.getFileType())) {
+            type = new byte[] { 4, userID, cid[1], cid[0] };
+        }
+
+        byte[] effectiveTime = getSpecDateSecond(elf.getEffectiveDate().replace("/", "").replace(" ", ""));
+        byte[] expirationTime = getSpecDateSecond(elf.getExpireDate().replace("/", "").replace(" ", ""));
+        byte[] appName = new byte[64];
+        byte[] currentName = elf.getFileName().getBytes();
+        if (currentName.length <= 64) {
+            System.arraycopy(currentName, 0, appName, 0, currentName.length);
+        } else {
+            throw new Exception("APP name should not more than 64 characters");
+        }
+
+        byte[] appVersion = new byte[4];
+        String[] version = elf.getVersion().replace(".", "-").split("-");
+        appVersion = new byte[] { 0, Byte.parseByte(version[0]), Byte.parseByte(version[1]), 
+            Byte.parseByte(version[2]) };
+
+        byte[] reserve = new byte[44];
+        byte[] note = elf.getNote().getBytes("GBK");
+        if (note.length <= 44) {
+            System.arraycopy(note, 0, reserve, 0, note.length);
+        } else {
+            throw new Exception("Note should not more than 44 characters");
+        }
+
+        byte[] signatureLength = { 1 };
+        byte[] signedTailLength = { 0, -56 };
+        byte[] signedFlag = null;
+        if (SIG[1].equals(sigVersion)) {
+            signedFlag = "SIG:0002".getBytes();
+        } else if (SIG[0].equals(sigVersion)) {
+            signedFlag = "SIG:0001".getBytes();
+        }
+
+        reverseArray(effectiveTime);
+        reverseArray(expirationTime);
+        reverseArray(signatureLength);
+        reverseArray(signedTailLength);
+
+        System.arraycopy(type, 0, tail, 0, 4);
+        System.arraycopy(effectiveTime, 0, tail, 4, 4);
+        System.arraycopy(expirationTime, 0, tail, 8, 4);
+        System.arraycopy(appName, 0, tail, 12, 64);
+        System.arraycopy(approvier, 0, tail, 76, 64);
+        System.arraycopy(appVersion, 0, tail, 140, 4);
+        System.arraycopy(reserve, 0, tail, 144, 44);
+        System.arraycopy(signatureLength, 0, tail, 188, 2);
+        System.arraycopy(signedTailLength, 0, tail, 190, 2);
+        System.arraycopy(signedFlag, 0, tail, 192, 8);
+        
+        return tail;
+    }
+
+    public static byte[] getSpecDateSecond(String yymmdd) throws java.text.ParseException
+    {
+        SimpleDateFormat df = new SimpleDateFormat("yyyyMMddHHmmss");
+        Date date = null;
+
+        int hh = 0;
+        int mm = 0;
+        int ss = 0;
+
+        StringBuffer sb = new StringBuffer();
+        sb.append(yymmdd);
+        sb.append(hh < 10 ? "0" + String.valueOf(hh) : String.valueOf(hh));
+        sb.append(mm < 10 ? "0" + String.valueOf(mm) : String.valueOf(mm));
+        sb.append(ss < 10 ? "0" + String.valueOf(ss) : String.valueOf(ss));
+        try {
+            date = df.parse(sb.toString());
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+
+        long second = date.getTime() / 1000L;
+        if (second > 2147356800L) {
+            second = 2147356800L;
+        }
+
+        return hexStringToBytes(Long.toHexString(second));
+    }
+    
+    public static void reverseArray(byte[] byteArray)
+    {
+        int i = 0;int n = byteArray.length - 1;
+        while (n > 2 * i) {
+            byte x = byteArray[i];
+            byteArray[i] = byteArray[(n - i)];
+            byteArray[(n - i)] = x;
+            i++;
+        }
+    }
+
+    public static byte[] hexStringToBytes(String hexString)
+    {
+        if ((hexString == null) || (hexString.equals(""))) {
+            return null;
+        }
+        hexString = hexString.toUpperCase();
+        int length = hexString.length() / 2;
+        char[] hexChars = hexString.toCharArray();
+        byte[] d = new byte[length];
+        for (int i = 0; i < length; i++) {
+            int pos = i * 2;
+            d[i] = ((byte)(charToByte(hexChars[pos]) << 4 | charToByte(hexChars[(pos + 1)])));
+        }
+        return d;
+    }
+
+    private static byte charToByte(char c) {
+        byte b = (byte)"0123456789ABCDEF".indexOf(c);
+        return b;
     }
 }
