@@ -1,5 +1,6 @@
 package org.a13ks.iccsign;
 
+import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
@@ -672,5 +673,19 @@ public class Program {
     private static byte charToByte(char c) {
         byte b = (byte)"0123456789ABCDEF".indexOf(c);
         return b;
+    }
+
+    public static byte[] calcSignSRCHash(byte[] fileContent, byte[] pukCertData, byte[] signedTail) throws Exception {
+        byte[] hash = null;
+        byte[] signSRC = new byte[fileContent.length + pukCertData.length + signedTail.length];
+        
+        System.arraycopy(fileContent, 0, signSRC, 0, fileContent.length);
+        System.arraycopy(pukCertData, 0, signSRC, fileContent.length, pukCertData.length);
+        System.arraycopy(signedTail, 0, signSRC, fileContent.length + pukCertData.length, signedTail.length);
+        
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        digest.update(signSRC);
+        hash = digest.digest();
+        return hash;
     }
 }
