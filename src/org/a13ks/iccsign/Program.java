@@ -544,6 +544,11 @@ public class Program {
         }
         return stringBuilder.toString();
     }
+    
+    public static byte[] getNeededSignedFile(String filePath)
+    {
+		return tmpData;
+    }
 
     public static byte[] getSignedTailContent(CustomerInfo customerInfo, FileELF elf) throws Exception {
         byte[] tail = new byte[255];
