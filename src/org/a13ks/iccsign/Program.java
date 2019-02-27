@@ -1,10 +1,16 @@
 package org.a13ks.iccsign;
 
+import java.io.BufferedInputStream;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 
 import com.sun.org.apache.xerces.internal.impl.xpath.regex.ParseException;
 
@@ -16,6 +22,8 @@ public class Program {
     private static Map<Integer, byte[]> userCertMap = new HashMap();
     private static int userSeq = 0;
     private static byte[] tmpData = null;
+    private static String outputSignedDirField = "";
+    private static Random random = new Random();
 
     public static CardInfo getCardInfo(PosICReader icReader)
     {
@@ -111,7 +119,8 @@ public class Program {
         return customerInfo;
     }
 
-    public static int signFile(String fileName, PosICReader icReader) throws Exception {
+
+    public static void signFile(String fileName, CardInfo cardInfo, CustomerInfo customerInfo, PosICReader icReader) throws Exception {
 
         FileELF elf = new FileELF();
 
@@ -135,9 +144,9 @@ public class Program {
                 }
                 System.err.println("ver:" + ver);
                 if (ver >= 30000) {
-                    statusCode = startSignFileForAuth(elf, (byte[])userCertMap.get(Integer.valueOf(user)));
+                    statusCode = startSignFileForAuth(elf, (byte[])userCertMap.get(Integer.valueOf(user)), cardInfo, customerInfo, icReader);
                 } else {
-                    statusCode = startSignFile(elf, (byte[])userCertMap.get(Integer.valueOf(user)));
+                    statusCode = startSignFile(elf, (byte[])userCertMap.get(Integer.valueOf(user)), cardInfo, customerInfo, icReader);
                 }
                 if (statusCode == 0)
                 {
@@ -215,9 +224,9 @@ public class Program {
                         }
                         System.err.println("ver:" + ver);
                         if (ver >= 30000) {
-                            statusCode = startSignFileForAuth(elf, pukCertData);
+                            statusCode = startSignFileForAuth(elf, pukCertData, cardInfo, customerInfo, icReader);
                         } else {
-                            statusCode = startSignFile(elf, pukCertData);
+                            statusCode = startSignFile(elf, pukCertData, cardInfo, customerInfo, icReader);
                         }
                         if (statusCode == 0) {
 //                            setProgress(this.seq);
@@ -255,7 +264,7 @@ public class Program {
                 }
             }
         } else if (SIG[0].equals(sigVersion)) {
-            int statusCode = startSignFile(elf, null);
+            int statusCode = startSignFile(elf, null, cardInfo, customerInfo, icReader);
             if (statusCode == 0) {
 //                setProgress(this.seq);
 //                this.seq += 1;
@@ -267,249 +276,247 @@ public class Program {
 //                return null;
             }
         }
-		return flleTag;
     }
     
-    public static int startSignFile(FileELF elf, byte[] pukCert) throws Exception {
-//        byte[] signedData = null;
-//        byte[] signedHash = null;
-//        byte[] pukCertData = null;
-//        int fileLen = 0;
-//        byte[] fileContent = TableUtil.getNeededSignedFile(elf.getFilePath());
-//        byte[] signedTail = TableUtil.getSignedTailContent(this.customerInfo, elf);
-//        
-//        if (SIG[1].equals(sigVersion)) {
-//            pukCertData = pukCert;
-//            
-//            signedHash = TableUtil.calcSignSRCHash(fileContent, pukCertData, signedTail);
-//        } else if (SIG[0].equals(sigVersion)) {
-//            signedHash = TableUtil.calcSignSRCHashV01(fileContent, signedTail);
-//        }
-//
-//        byte[] signedDate = NEWPOSUtil.getCurrentSecond();
-//        NEWPOSUtil.reverseArray(signedDate);
-//
-//        byte[] machineId = new byte[8];
-//        System.arraycopy(this.cardInfo.getSN(), 0, machineId, 0, 4);
-//
-//        byte[] result = new byte[12 + signedHash.length];
-//        System.arraycopy(signedDate, 0, result, 0, 4);
-//        System.arraycopy(machineId, 0, result, 4, 8);
-//        System.arraycopy(signedHash, 0, result, 12, signedHash.length);
-//        
-//        APDU apdu = new APDU();
-//        byte[] reqData = apdu.buildSignAPDU(elf, result);
-//        byte[] receiveData = this.posICReader.processAPDU(reqData);
-//
-//        if (receiveData.length > 2) {
-//            byte[] sw = new byte[2];
-//            System.arraycopy(receiveData, receiveData.length - 2, sw, 0, 2);
-//            apdu.setSW(sw);
-//            
-//            int dataLength = receiveData.length - 2;
-//            
-//            if (apdu.statusSW() == 0) {
-//                int i = 1;
-//                
-//                while (dataLength == 255) {
-//                    byte[] data = new byte[receiveData.length - 2];
-//                    System.arraycopy(receiveData, 0, data, 0, data.length);
-//
-//                    byte[] reqMore = apdu.buildGetMoreSignAPDU(i);
-//                    receiveData = this.posICReader.processAPDU(reqMore);
-//                    dataLength = receiveData.length - 2;
-//                    
-//                    int len = fileLen;
-//                    fileLen += data.length;
-//                    signedData = new byte[fileLen];
-//                    if (this.tmpData != null)
-//                        System.arraycopy(this.tmpData, 0, signedData, 0, this.tmpData.length);
-//                    System.arraycopy(data, 0, signedData, len, data.length);
-//                    this.tmpData = signedData;
-//                    i++;
-//                }
-//                
-//                byte[] data = new byte[receiveData.length - 2];
-//                System.arraycopy(receiveData, 0, data, 0, data.length);
-//                
-//                fileLen += data.length;
-//                signedData = new byte[fileLen];
-//                System.arraycopy(this.tmpData, 0, signedData, 0, this.tmpData.length);
-//                System.arraycopy(data, 0, signedData, this.tmpData.length, data.length);
-//                this.tmpData = null;
-//                
-//                byte[] totalContent = null;
-//                if (SIG[1].equals(sigVersion)) {
-//                    totalContent = new byte[fileContent.length + pukCertData.length + 
-//                        signedData.length + signedTail.length];
-//                    
-//                    System.arraycopy(fileContent, 0, totalContent, 0, fileContent.length);
-//                    System.arraycopy(pukCertData, 0, totalContent, fileContent.length, 
-//                        pukCertData.length);
-//                    System.arraycopy(signedData, 0, totalContent, fileContent.length + 
-//                        pukCertData.length, signedData.length);
-//                    System.arraycopy(signedTail, 0, totalContent, fileContent.length + 
-//                        pukCertData.length + signedData.length, signedTail.length);
-//                } else if (SIG[0].equals(sigVersion)) {
-//                    totalContent = new byte[fileContent.length + signedData.length + 
-//                        signedTail.length];
-//                    
-//                    System.arraycopy(fileContent, 0, totalContent, 0, fileContent.length);
-//                    System.arraycopy(signedData, 0, totalContent, fileContent.length, 
-//                        signedData.length);
-//                    System.arraycopy(signedTail, 0, totalContent, fileContent.length + 
-//                        signedData.length, signedTail.length);
-//                }
-//                String filePath = this.outputSignedDirField.getText() + "/" + elf.getFileName();
-//                
+    public static int startSignFile(FileELF elf, byte[] pukCert, CardInfo cardInfo, CustomerInfo customerInfo, PosICReader icReader) throws Exception {
+        byte[] signedData = null;
+        byte[] signedHash = null;
+        byte[] pukCertData = null;
+        int fileLen = 0;
+        byte[] fileContent = getNeededSignedFile(elf.getFilePath());
+        byte[] signedTail = getSignedTailContent(customerInfo, elf);
+        
+        if (SIG[1].equals(sigVersion)) {
+            pukCertData = pukCert;
+            
+            signedHash = calcSignSRCHash(fileContent, pukCertData, signedTail);
+        } else if (SIG[0].equals(sigVersion)) {
+            signedHash = calcSignSRCHashV01(fileContent, signedTail);
+        }
+
+        byte[] signedDate = getCurrentSecond();
+        reverseArray(signedDate);
+
+        byte[] machineId = new byte[8];
+        System.arraycopy(cardInfo.getSN(), 0, machineId, 0, 4);
+
+        byte[] result = new byte[12 + signedHash.length];
+        System.arraycopy(signedDate, 0, result, 0, 4);
+        System.arraycopy(machineId, 0, result, 4, 8);
+        System.arraycopy(signedHash, 0, result, 12, signedHash.length);
+        
+        APDU apdu = new APDU();
+        byte[] reqData = apdu.buildSignAPDU(elf, result);
+        byte[] receiveData = icReader.processAPDU(reqData);
+
+        if (receiveData.length > 2) {
+            byte[] sw = new byte[2];
+            System.arraycopy(receiveData, receiveData.length - 2, sw, 0, 2);
+            apdu.setSW(sw);
+            
+            int dataLength = receiveData.length - 2;
+            
+            if (apdu.statusSW() == 0) {
+                int i = 1;
+                
+                while (dataLength == 255) {
+                    byte[] data = new byte[receiveData.length - 2];
+                    System.arraycopy(receiveData, 0, data, 0, data.length);
+
+                    byte[] reqMore = apdu.buildGetMoreSignAPDU(i);
+                    receiveData = icReader.processAPDU(reqMore);
+                    dataLength = receiveData.length - 2;
+                    
+                    int len = fileLen;
+                    fileLen += data.length;
+                    signedData = new byte[fileLen];
+                    if (tmpData != null)
+                        System.arraycopy(tmpData, 0, signedData, 0, tmpData.length);
+                    System.arraycopy(data, 0, signedData, len, data.length);
+                    tmpData = signedData;
+                    i++;
+                }
+                
+                byte[] data = new byte[receiveData.length - 2];
+                System.arraycopy(receiveData, 0, data, 0, data.length);
+                
+                fileLen += data.length;
+                signedData = new byte[fileLen];
+                System.arraycopy(tmpData, 0, signedData, 0, tmpData.length);
+                System.arraycopy(data, 0, signedData, tmpData.length, data.length);
+                tmpData = null;
+                
+                byte[] totalContent = null;
+                if (SIG[1].equals(sigVersion)) {
+                    totalContent = new byte[fileContent.length + pukCertData.length + 
+                        signedData.length + signedTail.length];
+                    
+                    System.arraycopy(fileContent, 0, totalContent, 0, fileContent.length);
+                    System.arraycopy(pukCertData, 0, totalContent, fileContent.length, 
+                        pukCertData.length);
+                    System.arraycopy(signedData, 0, totalContent, fileContent.length + 
+                        pukCertData.length, signedData.length);
+                    System.arraycopy(signedTail, 0, totalContent, fileContent.length + 
+                        pukCertData.length + signedData.length, signedTail.length);
+                } else if (SIG[0].equals(sigVersion)) {
+                    totalContent = new byte[fileContent.length + signedData.length + 
+                        signedTail.length];
+                    
+                    System.arraycopy(fileContent, 0, totalContent, 0, fileContent.length);
+                    System.arraycopy(signedData, 0, totalContent, fileContent.length, 
+                        signedData.length);
+                    System.arraycopy(signedTail, 0, totalContent, fileContent.length + 
+                        signedData.length, signedTail.length);
+                }
+
+                String filePath = outputSignedDirField + "/" + elf.getFileName();
+
 //                NEWPOSUtil.writeOutBinaryFile(filePath, totalContent);
-//                return 0;
-//            return -1;
-//        }
-//        
-//        if (receiveData.length == 2) {
-//            apdu.setSW(receiveData);
-//            if (apdu.statusSW() == 253) {
-//                return 253;
-//            }
-//            return -1;
-//        }
-//        
+                return 0;
+            }
+            if (receiveData.length == 2) {
+                apdu.setSW(receiveData);
+                if (apdu.statusSW() == 253) {
+                    return 253;
+                }
+                return -1;
+            }
+        }
         return -1;
     }
 
-    public static int startSignFileForAuth(FileELF elf, byte[] pukCert) throws Exception {
-//        byte[] signedData = null;
-//        byte[] signedHash = null;
-//        byte[] pukCertData = null;
-//        int fileLen = 0;
-//
-//        byte[] fileContent = TableUtil.getNeededSignedFile(elf.getFilePath());
-//        byte[] signedTail = TableUtil.getSignedTailContent(this.customerInfo, elf);
-//        
-//        if (SIG[1].equals(sigVersion)) {
-//            pukCertData = pukCert;
-//            signedHash = TableUtil.calcSignSRCHash(fileContent, pukCertData, signedTail);
-//        } else if (SIG[0].equals(sigVersion)) {
-//            signedHash = TableUtil.calcSignSRCHashV01(fileContent, signedTail);
-//        }
-//
-//        byte[] signedDate = NEWPOSUtil.getCurrentSecond();
-//        NEWPOSUtil.reverseArray(signedDate);
-//
-//        byte[] machineId = new byte[8];
-//        System.arraycopy(this.cardInfo.getSN(), 0, machineId, 0, 4);
-//
-//        int randomSize = 253 - (12 + signedHash.length + 32);
-//        
-//        byte[] fillRandom = new byte[randomSize];
-//        this.random.nextBytes(fillRandom);
-//        
-//        int length = 12 + signedHash.length + randomSize + 32;
-//        
-//        byte[] toHashSrc = new byte[13 + signedHash.length + randomSize];
-//        toHashSrc[0] = 1;
-//
-//        byte[] result = new byte[length];
-//        int idx = 0;
-//        System.arraycopy(signedDate, 0, result, idx, 4);
-//        idx += 4;
-//        System.arraycopy(machineId, 0, result, idx, 8);
-//        idx += 8;
-//        System.arraycopy(signedHash, 0, result, idx, signedHash.length);
-//        idx += signedHash.length;
-//        System.arraycopy(fillRandom, 0, result, idx, randomSize);
-//        idx += randomSize;
-//        
-//        System.arraycopy(result, 0, toHashSrc, 1, idx);
-//        
-//        byte[] fillRandomHash = NEWPOSUtil.calcSha256Sum(toHashSrc);
-//        
-//        System.arraycopy(fillRandomHash, 0, result, idx, fillRandomHash.length);
-//        idx += fillRandomHash.length;
-//        
-//        APDU apdu = new APDU();
-//        byte[] reqData = apdu.buildSignAPDU(elf, result);
-//        byte[] receiveData = this.posICReader.processAPDU(reqData);
-//
-//        if (receiveData.length > 2) {
-//            byte[] sw = new byte[2];
-//            System.arraycopy(receiveData, receiveData.length - 2, sw, 0, 2);
-//            apdu.setSW(sw);
-//            
-//            int dataLength = receiveData.length - 2;
-//            
-//            if (apdu.statusSW() == 0) {
-//                int i = 1;
-//                
-//                while (dataLength == 255) {
-//                    byte[] data = new byte[receiveData.length - 2];
-//                    System.arraycopy(receiveData, 0, data, 0, data.length);
-//
-//                    byte[] reqMore = apdu.buildGetMoreSignAPDU(i);
-//                    receiveData = this.posICReader.processAPDU(reqMore);
-//                    dataLength = receiveData.length - 2;
-//                    
-//                    int len = fileLen;
-//                    fileLen += data.length;
-//                    signedData = new byte[fileLen];
-//                    if (this.tmpData != null)
-//                        System.arraycopy(this.tmpData, 0, signedData, 0, this.tmpData.length);
-//                    System.arraycopy(data, 0, signedData, len, data.length);
-//                    this.tmpData = signedData;
-//                    i++;
-//                }
-//                
-//                byte[] data = new byte[receiveData.length - 2];
-//                System.arraycopy(receiveData, 0, data, 0, data.length);
-//                
-//                fileLen += data.length;
-//                signedData = new byte[fileLen];
-//                System.arraycopy(this.tmpData, 0, signedData, 0, this.tmpData.length);
-//                System.arraycopy(data, 0, signedData, this.tmpData.length, data.length);
-//                this.tmpData = null;
-//                
-//                byte[] totalContent = null;
-//                if (SIG[1].equals(sigVersion)) {
-//                    totalContent = new byte[fileContent.length + pukCertData.length + 
-//                        signedData.length + signedTail.length];
-//                    
-//                    System.arraycopy(fileContent, 0, totalContent, 0, fileContent.length);
-//                    System.arraycopy(pukCertData, 0, totalContent, fileContent.length, 
-//                        pukCertData.length);
-//                    System.arraycopy(signedData, 0, totalContent, fileContent.length + 
-//                        pukCertData.length, signedData.length);
-//                    System.arraycopy(signedTail, 0, totalContent, fileContent.length + 
-//                        pukCertData.length + signedData.length, signedTail.length);
-//                } else if (SIG[0].equals(sigVersion)) {
-//                    totalContent = new byte[fileContent.length + signedData.length + 
-//                        signedTail.length];
-//                    
-//                    System.arraycopy(fileContent, 0, totalContent, 0, fileContent.length);
-//                    System.arraycopy(signedData, 0, totalContent, fileContent.length, 
-//                        signedData.length);
-//                    System.arraycopy(signedTail, 0, totalContent, fileContent.length + 
-//                        signedData.length, signedTail.length);
-//                }
-//                
-//                String filePath = this.outputSignedDirField.getText() + "/" + elf.getFileName();
-//                
-//                NEWPOSUtil.writeOutBinaryFile(filePath, totalContent);
-//
-//                return 0;
-//            }
-//
-//            return -1;
-//        }
-//        
-//        if (receiveData.length == 2) {
-//            apdu.setSW(receiveData);
-//            if (apdu.statusSW() == 253) {
-//                return 253;
-//            }
-//            return -1;
-//        }
-//        
+    public static int startSignFileForAuth(FileELF elf, byte[] pukCert, CardInfo cardInfo, CustomerInfo customerInfo, PosICReader icReader) throws Exception {
+        byte[] signedData = null;
+        byte[] signedHash = null;
+        byte[] pukCertData = null;
+        int fileLen = 0;
+
+        byte[] fileContent = getNeededSignedFile(elf.getFilePath());
+        byte[] signedTail = getSignedTailContent(customerInfo, elf);
+        
+        if (SIG[1].equals(sigVersion)) {
+            pukCertData = pukCert;
+            signedHash = calcSignSRCHash(fileContent, pukCertData, signedTail);
+        } else if (SIG[0].equals(sigVersion)) {
+            signedHash = calcSignSRCHashV01(fileContent, signedTail);
+        }
+
+        byte[] signedDate = getCurrentSecond();
+        reverseArray(signedDate);
+
+        byte[] machineId = new byte[8];
+        System.arraycopy(cardInfo.getSN(), 0, machineId, 0, 4);
+
+        int randomSize = 253 - (12 + signedHash.length + 32);
+        
+        byte[] fillRandom = new byte[randomSize];
+        random.nextBytes(fillRandom);
+        
+        int length = 12 + signedHash.length + randomSize + 32;
+        
+        byte[] toHashSrc = new byte[13 + signedHash.length + randomSize];
+        toHashSrc[0] = 1;
+
+        byte[] result = new byte[length];
+        int idx = 0;
+        System.arraycopy(signedDate, 0, result, idx, 4);
+        idx += 4;
+        System.arraycopy(machineId, 0, result, idx, 8);
+        idx += 8;
+        System.arraycopy(signedHash, 0, result, idx, signedHash.length);
+        idx += signedHash.length;
+        System.arraycopy(fillRandom, 0, result, idx, randomSize);
+        idx += randomSize;
+        
+        System.arraycopy(result, 0, toHashSrc, 1, idx);
+        
+        byte[] fillRandomHash = NEWPOSUtil.calcSha256Sum(toHashSrc);
+        
+        System.arraycopy(fillRandomHash, 0, result, idx, fillRandomHash.length);
+        idx += fillRandomHash.length;
+        
+        APDU apdu = new APDU();
+        byte[] reqData = apdu.buildSignAPDU(elf, result);
+        byte[] receiveData = icReader.processAPDU(reqData);
+
+        if (receiveData.length > 2) {
+            byte[] sw = new byte[2];
+            System.arraycopy(receiveData, receiveData.length - 2, sw, 0, 2);
+            apdu.setSW(sw);
+            
+            int dataLength = receiveData.length - 2;
+            
+            if (apdu.statusSW() == 0) {
+                int i = 1;
+                
+                while (dataLength == 255) {
+                    byte[] data = new byte[receiveData.length - 2];
+                    System.arraycopy(receiveData, 0, data, 0, data.length);
+
+                    byte[] reqMore = apdu.buildGetMoreSignAPDU(i);
+                    receiveData = icReader.processAPDU(reqMore);
+                    dataLength = receiveData.length - 2;
+                    
+                    int len = fileLen;
+                    fileLen += data.length;
+                    signedData = new byte[fileLen];
+                    if (tmpData != null)
+                        System.arraycopy(tmpData, 0, signedData, 0, tmpData.length);
+                    System.arraycopy(data, 0, signedData, len, data.length);
+                    tmpData = signedData;
+                    i++;
+                }
+                
+                byte[] data = new byte[receiveData.length - 2];
+                System.arraycopy(receiveData, 0, data, 0, data.length);
+                
+                fileLen += data.length;
+                signedData = new byte[fileLen];
+                System.arraycopy(tmpData, 0, signedData, 0, tmpData.length);
+                System.arraycopy(data, 0, signedData, tmpData.length, data.length);
+                tmpData = null;
+                
+                byte[] totalContent = null;
+                if (SIG[1].equals(sigVersion)) {
+                    totalContent = new byte[fileContent.length + pukCertData.length + 
+                        signedData.length + signedTail.length];
+                    
+                    System.arraycopy(fileContent, 0, totalContent, 0, fileContent.length);
+                    System.arraycopy(pukCertData, 0, totalContent, fileContent.length, 
+                        pukCertData.length);
+                    System.arraycopy(signedData, 0, totalContent, fileContent.length + 
+                        pukCertData.length, signedData.length);
+                    System.arraycopy(signedTail, 0, totalContent, fileContent.length + 
+                        pukCertData.length + signedData.length, signedTail.length);
+                } else if (SIG[0].equals(sigVersion)) {
+                    totalContent = new byte[fileContent.length + signedData.length + 
+                        signedTail.length];
+                    
+                    System.arraycopy(fileContent, 0, totalContent, 0, fileContent.length);
+                    System.arraycopy(signedData, 0, totalContent, fileContent.length, 
+                        signedData.length);
+                    System.arraycopy(signedTail, 0, totalContent, fileContent.length + 
+                        signedData.length, signedTail.length);
+                }
+                
+                String filePath = outputSignedDirField + "/" + elf.getFileName();
+                
+//                TODO: NEWPOSUtil.writeOutBinaryFile(filePath, totalContent);
+
+                return 0;
+            }
+
+            return -1;
+        }
+        
+        if (receiveData.length == 2) {
+            apdu.setSW(receiveData);
+            if (apdu.statusSW() == 253) {
+                return 253;
+            }
+            return -1;
+        }
+        
         return -1;
     }
 
@@ -544,75 +551,6 @@ public class Program {
             stringBuilder.append(hv);
         }
         return stringBuilder.toString();
-    }
-    
-    public static byte[] getNeededSignedFile(String filePath)
-    {
-		return tmpData;
-    }
-
-    public static byte[] getSignedTailContent(CustomerInfo customerInfo, FileELF elf) throws Exception {
-        byte[] tail = new byte[255];
-        byte[] type = new byte[4];
-        byte[] cid = customerInfo.getCid();
-        byte[] approvier = customerInfo.getName();
-        byte userID = Byte.parseByte(elf.getUser().replace("User", ""));
-
-        if ("APP".equals(elf.getFileType())) {
-            type = new byte[] { 6, userID, cid[1], cid[0] };
-        } else if ("LIB".equals(elf.getFileType())) {
-            type = new byte[] { 4, userID, cid[1], cid[0] };
-        }
-
-        byte[] effectiveTime = getSpecDateSecond(elf.getEffectiveDate().replace("/", "").replace(" ", ""));
-        byte[] expirationTime = getSpecDateSecond(elf.getExpireDate().replace("/", "").replace(" ", ""));
-        byte[] appName = new byte[64];
-        byte[] currentName = elf.getFileName().getBytes();
-        if (currentName.length <= 64) {
-            System.arraycopy(currentName, 0, appName, 0, currentName.length);
-        } else {
-            throw new Exception("APP name should not more than 64 characters");
-        }
-
-        byte[] appVersion = new byte[4];
-        String[] version = elf.getVersion().replace(".", "-").split("-");
-        appVersion = new byte[] { 0, Byte.parseByte(version[0]), Byte.parseByte(version[1]), 
-            Byte.parseByte(version[2]) };
-
-        byte[] reserve = new byte[44];
-        byte[] note = elf.getNote().getBytes("GBK");
-        if (note.length <= 44) {
-            System.arraycopy(note, 0, reserve, 0, note.length);
-        } else {
-            throw new Exception("Note should not more than 44 characters");
-        }
-
-        byte[] signatureLength = { 1 };
-        byte[] signedTailLength = { 0, -56 };
-        byte[] signedFlag = null;
-        if (SIG[1].equals(sigVersion)) {
-            signedFlag = "SIG:0002".getBytes();
-        } else if (SIG[0].equals(sigVersion)) {
-            signedFlag = "SIG:0001".getBytes();
-        }
-
-        reverseArray(effectiveTime);
-        reverseArray(expirationTime);
-        reverseArray(signatureLength);
-        reverseArray(signedTailLength);
-
-        System.arraycopy(type, 0, tail, 0, 4);
-        System.arraycopy(effectiveTime, 0, tail, 4, 4);
-        System.arraycopy(expirationTime, 0, tail, 8, 4);
-        System.arraycopy(appName, 0, tail, 12, 64);
-        System.arraycopy(approvier, 0, tail, 76, 64);
-        System.arraycopy(appVersion, 0, tail, 140, 4);
-        System.arraycopy(reserve, 0, tail, 144, 44);
-        System.arraycopy(signatureLength, 0, tail, 188, 2);
-        System.arraycopy(signedTailLength, 0, tail, 190, 2);
-        System.arraycopy(signedFlag, 0, tail, 192, 8);
-        
-        return tail;
     }
 
     public static byte[] getSpecDateSecond(String yymmdd) throws java.text.ParseException
@@ -701,4 +639,185 @@ public class Program {
         hash = digest.digest();
         return hash;
     }
+    
+    public static byte[] getFileContent(String filePath)
+    {
+        byte[] content = null;
+        try {
+            FileInputStream fis = new FileInputStream(filePath);
+            BufferedInputStream bis = new BufferedInputStream(fis);
+            
+            int fileLength = bis.available();
+            int from = 264;
+            content = new byte[fileLength - from];
+            
+            bis.skip(from);
+            bis.read(content, 0, fileLength - from);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return content;
+    }
+
+    public static byte[] getNeededSignedFile(String filePath) throws FileNotFoundException
+    {
+        byte[] content = null;
+        byte[] sig0001Tag = { 83, 73, 71, 58, 48, 48, 48, 49 };
+        byte[] sig0002Tag = { 83, 73, 71, 58, 48, 48, 48, 50 };
+        FileInputStream fis = null;
+        BufferedInputStream bis = null;
+
+        try
+        {
+            int fileLen;
+            byte[] signVersion;
+            int fromSkip;
+            return content;
+        }
+        finally
+        {
+            if (fis != null) {
+                try {
+                    fis.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+            if (bis != null) {
+                try {
+                    bis.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    public static byte[] getNeededSigBinFile(String filePath) throws FileNotFoundException
+    {
+        byte[] content = null;
+        byte[] sigFmtVer = { 83, 73, 71, 95, 70, 77, 84, 95, 86, 69, 82, 58, 48, 48, 48, 50 };
+        FileInputStream fis = null;
+        BufferedInputStream bis = null;
+
+        try
+        {
+            int fileLen;
+            byte[] signVersion;
+            int fromSkip;
+
+            return content;
+        }
+        finally
+        {
+            if (fis != null) {
+                try {
+                    fis.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+            if (bis != null) {
+                try {
+                    bis.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    public static byte[] getSignedTailContent(CustomerInfo customerInfo, FileELF elf) throws Exception
+    {
+        byte[] tail = new byte['È'];
+        
+        byte[] type = new byte[4];
+        
+        byte[] cid = customerInfo.getCid();
+        byte[] approvier = customerInfo.getName();
+        
+        byte userID = Byte.parseByte(elf.getUser().replace("User", ""));
+        
+        if ("APP".equals(elf.getFileType())) {
+            type = new byte[] { 6, userID, cid[1], cid[0] };
+        } else if ("LIB".equals(elf.getFileType())) {
+            type = new byte[] { 4, userID, cid[1], cid[0] };
+        }
+        
+
+        byte[] effectiveTime = getSpecDateSecond(elf.getEffectiveDate().replace("/", "").replace(" ", ""));
+        
+        byte[] expirationTime = getSpecDateSecond(elf.getExpireDate().replace("/", "").replace(" ", ""));
+        
+        byte[] appName = new byte[64];
+        byte[] currentName = elf.getFileName().getBytes();
+        if (currentName.length <= 64) {
+            System.arraycopy(currentName, 0, appName, 0, currentName.length);
+        } else {
+            throw new Exception("APP name should not more than 64 characters");
+        }
+
+        byte[] appVersion = new byte[4];
+        String[] version = elf.getVersion().replace(".", "-").split("-");
+        appVersion = new byte[] { 0, Byte.parseByte(version[0]), Byte.parseByte(version[1]), 
+            Byte.parseByte(version[2]) };
+
+        byte[] reserve = new byte[44];
+        byte[] note = elf.getNote().getBytes("GBK");
+        if (note.length <= 44) {
+            System.arraycopy(note, 0, reserve, 0, note.length);
+        } else {
+            throw new Exception("Note should not more than 44 characters");
+        }
+
+        byte[] signatureLength = { 1 };
+        byte[] signedTailLength = { 0, -56 };
+        byte[] signedFlag = null;
+        if (SIG[1].equals(sigVersion)) {
+            signedFlag = "SIG:0002".getBytes();
+        } else if (SIG[0].equals(sigVersion)) {
+            signedFlag = "SIG:0001".getBytes();
+        }
+
+        reverseArray(effectiveTime);
+        reverseArray(expirationTime);
+        reverseArray(signatureLength);
+        reverseArray(signedTailLength);
+
+        System.arraycopy(type, 0, tail, 0, 4);
+        System.arraycopy(effectiveTime, 0, tail, 4, 4);
+        System.arraycopy(expirationTime, 0, tail, 8, 4);
+        System.arraycopy(appName, 0, tail, 12, 64);
+        System.arraycopy(approvier, 0, tail, 76, 64);
+        System.arraycopy(appVersion, 0, tail, 140, 4);
+        System.arraycopy(reserve, 0, tail, 144, 44);
+        System.arraycopy(signatureLength, 0, tail, 188, 2);
+        System.arraycopy(signedTailLength, 0, tail, 190, 2);
+        System.arraycopy(signedFlag, 0, tail, 192, 8);
+        
+        return tail;
+    }
+
+    public static byte[] getCurrentSecond()
+    {
+        Date now = new Date();
+        long second = now.getTime() / 1000L;
+        return hexStringToBytes(Long.toHexString(second));
+    }
+
+    public static byte[] calcSha256Sum(byte[] src)
+    {
+        byte[] hash = new byte[32];
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            digest.update(src);
+            hash = digest.digest();
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
+        return hash;
+    }
+
 }
