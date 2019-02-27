@@ -430,7 +430,7 @@ public class Program {
         
         System.arraycopy(result, 0, toHashSrc, 1, idx);
         
-        byte[] fillRandomHash = NEWPOSUtil.calcSha256Sum(toHashSrc);
+        byte[] fillRandomHash = calcSha256Sum(toHashSrc);
         
         System.arraycopy(fillRandomHash, 0, result, idx, fillRandomHash.length);
         idx += fillRandomHash.length;
@@ -518,22 +518,6 @@ public class Program {
         }
         
         return -1;
-    }
-
-    public static void main(String[] args) {
-        PosICReader icReader = new PosICReader();
-        icReader.open("/dev/tty.usbserial-AH01SKWE");
-
-        APDU apdu = new APDU();
-        byte[] selectAPPResp = icReader.processAPDU(apdu.selectApplication("NEWPOS-CARD"));
-        apdu.setSW(selectAPPResp);
-        int status = apdu.statusSW();
-
-        if (status == 0) {
-            CardInfo cardInfo = getCardInfo(icReader);
-            CustomerInfo customerInfo = getCustomerInfo(icReader);
-
-        }
     }
 
     public static String bytesToHexString(byte[] src)
@@ -731,7 +715,7 @@ public class Program {
 
     public static byte[] getSignedTailContent(CustomerInfo customerInfo, FileELF elf) throws Exception
     {
-        byte[] tail = new byte['È'];
+        byte[] tail = new byte['ï¿½'];
         
         byte[] type = new byte[4];
         
@@ -818,6 +802,27 @@ public class Program {
             e.printStackTrace();
         }
         return hash;
+    }
+
+    public static void main(String[] args) {
+        PosICReader icReader = new PosICReader();
+        if (icReader.open("/dev/cu.usbserial-AH01SKWE"))
+        {
+        	icReader.cardPowerOn();
+        }
+
+        APDU apdu = new APDU();
+        byte[] selectAPPResp = icReader.processAPDU(apdu.selectApplication("NEWPOS-CARD"));
+        apdu.setSW(selectAPPResp);
+        int status = apdu.statusSW();
+
+        if (status == 0) {
+            CardInfo cardInfo = getCardInfo(icReader);
+            CustomerInfo customerInfo = getCustomerInfo(icReader);
+
+        }
+        
+        icReader.cardPowerOff();
     }
 
 }

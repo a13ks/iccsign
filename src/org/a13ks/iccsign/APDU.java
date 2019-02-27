@@ -19,7 +19,7 @@ public class APDU
     public static final byte READ_CARD_VER_INS = -54;
     public static final byte CLA_00 = 0;
     public static final byte CLA_80 = -128;
-    public static final byte[] SW_9000 = { -112 };
+    public static final byte[] SW_9000 = { -112, 0 };
 
     public static final byte[] SW_6801 = new byte[2];
 
@@ -27,7 +27,7 @@ public class APDU
     
     public static final byte[] SW_6986 = { 105, -122 };
     
-    public static final byte[] SW_6b00 = { 107 };
+    public static final byte[] SW_6b00 = { 107, 0 };
     
     public static final byte[] SW_6983 = { 105, -125 };
     
@@ -67,14 +67,14 @@ public class APDU
 
     public byte[] selectApplication(String appName)
     {
-        byte appNameLen = (byte)appName.length();
-        byte[] selectApdu = new byte[5 + appNameLen];
-        byte[] head = { 0, -92, 4 };
-        byte[] lc = { appNameLen };
-        byte[] data = appName.getBytes();
-        System.arraycopy(head, 0, selectApdu, 0, 3);
-        System.arraycopy(lc, 0, selectApdu, 3, 1);
-        System.arraycopy(data, 0, selectApdu, 4, appNameLen);
+        final byte appNameLen = (byte)appName.length();
+        final byte[] selectApdu = new byte[5 + appNameLen];
+        final byte[] head = { 0, -92, 4, 0 };
+        final byte[] lc = { appNameLen };
+        final byte[] data = appName.getBytes();
+        System.arraycopy(head, 0, selectApdu, 0, 4);
+        System.arraycopy(lc, 0, selectApdu, 4, 1);
+        System.arraycopy(data, 0, selectApdu, 5, appNameLen);
         return selectApdu;
     }
 

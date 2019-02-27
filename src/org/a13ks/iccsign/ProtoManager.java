@@ -36,8 +36,14 @@ public class ProtoManager {
 
     public ProtoManager(SerialPort serialPort) {
         this.serialPort = serialPort;
-        this.recvCache = new byte[255];
-        this.rQueue = new LinkedList();
+        this.timeout = 2;
+        this.pktSequence = 4097;
+        this.recvNextSeq = 4097;
+        this.ackedPktSeq = 0;
+        this.restartSent = false;
+        this.recvCacheIdx = 0;
+        this.recvCache = new byte[2048];
+        this.rQueue = new LinkedList<Packet>();
     }
 
     private Packet lowWrite(Packet pkt) {
@@ -52,6 +58,19 @@ public class ProtoManager {
 
             byte[] translated_bytes = translated(pkt.getBytes());
             serialPort.writeBytes(translated_bytes, translated_bytes.length);
+            
+            int bytesAwaitingWrite = serialPort.bytesAwaitingWrite();
+            while (bytesAwaitingWrite > 0)
+            {
+            	System.out.println("Writing bytes=" + String.valueOf(bytesAwaitingWrite));
+                try {
+					wait(500);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+
+                bytesAwaitingWrite = serialPort.bytesAwaitingWrite();
+            }
 
             while (retry-- > 0) {
                 int bytes = serialPort.bytesAvailable();
@@ -62,7 +81,7 @@ public class ProtoManager {
                     callBack(buffer);
                 } else {
                     try {
-                        wait(this.timeout * 3000);
+                        wait(this.timeout * 1000);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }	
@@ -93,15 +112,14 @@ public class ProtoManager {
     }
 
     public boolean sendCommand(int command) {
-        Packet pkt = new Packet();
-        
+    	final Packet pkt = new Packet();
         if (!this.restartSent) {
             pkt.setRestartFlag();
             this.restartSent = true;
         }
         pkt.setCommand((short)command);
         
-        Packet reply = lowWrite(pkt);
+        final Packet reply = lowWrite(pkt);
         if (reply == null)
             return false;
         byte[] result = reply.getICDataBytes();

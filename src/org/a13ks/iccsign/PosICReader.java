@@ -15,10 +15,7 @@ public class PosICReader
 
         public boolean open(String portName)
         {
-            SerialPort[] ports = SerialPort.getCommPorts();
-
-            // todo: find by portName
-            this.port = ports[2];
+        	this.port = SerialPort.getCommPort(portName);
 
             if (this.port != null) {
                 port.setComPortParameters(115200, 8, 1, 0);
@@ -59,36 +56,31 @@ public class PosICReader
         {
             byte[] recData = this.pm.write(4, reqData);
             byte[] data = null;
-            if ((recData != null) && (recData.length > 4)) {
-                byte[] code = new byte[4];
+            if (recData != null && recData.length > 4) {
+                final byte[] code = new byte[4];
                 data = new byte[recData.length - 4];
                 System.arraycopy(recData, 0, code, 0, 4);
-                int codeStatus = (code[0] & 0xFF) + ((code[1] & 0xFF) << 8) + ((code[2] & 0xFF) << 16) + (
-                    (code[3] & 0xFF) << 24);
+                final int codeStatus = (code[0] & 0xFF) + ((code[1] & 0xFF) << 8) + ((code[2] & 0xFF) << 16) + ((code[3] & 0xFF) << 24);
                 if (codeStatus != 0) {
                     return null;
                 }
                 System.arraycopy(recData, 4, data, 0, data.length);
             }
-            
-            if ((data.length == 2) && 
-                (data[0] == 97)) {
-                APDU apdu = new APDU();
+            if (data.length == 2 && data[0] == 97) {
+                final APDU apdu = new APDU();
                 reqData = apdu.reqContactCardData(data[1]);
                 recData = this.pm.write(4, reqData);
-                if ((recData != null) && (recData.length > 4)) {
-                    byte[] code = new byte[4];
+                if (recData != null && recData.length > 4) {
+                    final byte[] code2 = new byte[4];
                     data = new byte[recData.length - 4];
-                    System.arraycopy(recData, 0, code, 0, 4);
-                    int codeStatus = (code[0] & 0xFF) + ((code[1] & 0xFF) << 8) + ((code[2] & 0xFF) << 16) + (
-                        (code[3] & 0xFF) << 24);
-                    if (codeStatus != 0) {
+                    System.arraycopy(recData, 0, code2, 0, 4);
+                    final int codeStatus2 = (code2[0] & 0xFF) + ((code2[1] & 0xFF) << 8) + ((code2[2] & 0xFF) << 16) + ((code2[3] & 0xFF) << 24);
+                    if (codeStatus2 != 0) {
                         return null;
                     }
                     System.arraycopy(recData, 4, data, 0, data.length);
                 }
             }
-
             return data;
         }
 }
