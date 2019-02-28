@@ -1,12 +1,17 @@
 package org.a13ks.iccsign;
 
 import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.DataOutputStream;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -19,10 +24,8 @@ public class Program {
     public static volatile String sigVersion = "V02";
     public static final String[] SIG = { "V01", "V02" };
 
-    private static Map<Integer, byte[]> userCertMap = new HashMap();
-    private static int userSeq = 0;
+    private static Map<Integer, byte[]> userCertMap = new HashMap<Integer, byte[]>();
     private static byte[] tmpData = null;
-    private static String outputSignedDirField = "";
     private static Random random = new Random();
 
     public static CardInfo getCardInfo(PosICReader icReader)
@@ -120,8 +123,7 @@ public class Program {
     }
 
 
-    public static void signFile(String fileName, CardInfo cardInfo, CustomerInfo customerInfo, PosICReader icReader) throws Exception {
-
+    public static void signFile(String fileName, String outputDirectory, CardInfo cardInfo, CustomerInfo customerInfo, PosICReader icReader) throws Exception {
         FileELF elf = new FileELF();
         elf.setFileName("app");
         elf.setFileType("APP");
@@ -133,7 +135,6 @@ public class Program {
         elf.setFilePath(fileName);
 
         int user = 0;
-        userSeq = user;
         int flleTag = user + 32;
 
         if (SIG[1].equals(sigVersion)) {
@@ -152,9 +153,9 @@ public class Program {
                 }
                 System.err.println("ver:" + ver);
                 if (ver >= 30000) {
-                    statusCode = startSignFileForAuth(elf, (byte[])userCertMap.get(Integer.valueOf(user)), cardInfo, customerInfo, icReader);
+                    statusCode = startSignFileForAuth(elf, outputDirectory, (byte[])userCertMap.get(Integer.valueOf(user)), cardInfo, customerInfo, icReader);
                 } else {
-                    statusCode = startSignFile(elf, (byte[])userCertMap.get(Integer.valueOf(user)), cardInfo, customerInfo, icReader);
+                    statusCode = startSignFile(elf, outputDirectory, (byte[])userCertMap.get(Integer.valueOf(user)), cardInfo, customerInfo, icReader);
                 }
                 if (statusCode == 0)
                 {
@@ -232,9 +233,9 @@ public class Program {
                         }
                         System.err.println("ver:" + ver);
                         if (ver >= 30000) {
-                            statusCode = startSignFileForAuth(elf, pukCertData, cardInfo, customerInfo, icReader);
+                            statusCode = startSignFileForAuth(elf, outputDirectory, pukCertData, cardInfo, customerInfo, icReader);
                         } else {
-                            statusCode = startSignFile(elf, pukCertData, cardInfo, customerInfo, icReader);
+                            statusCode = startSignFile(elf, outputDirectory, pukCertData, cardInfo, customerInfo, icReader);
                         }
                         if (statusCode == 0) {
 //                            setProgress(this.seq);
@@ -247,7 +248,7 @@ public class Program {
                 }
             }
         } else if (SIG[0].equals(sigVersion)) {
-            int statusCode = startSignFile(elf, null, cardInfo, customerInfo, icReader);
+            int statusCode = startSignFile(elf, outputDirectory, null, cardInfo, customerInfo, icReader);
             if (statusCode == 0) {
 //                setProgress(this.seq);
 //                this.seq += 1;
@@ -261,7 +262,7 @@ public class Program {
         }
     }
     
-    public static int startSignFile(FileELF elf, byte[] pukCert, CardInfo cardInfo, CustomerInfo customerInfo, PosICReader icReader) throws Exception {
+    public static int startSignFile(FileELF elf, String outputDirectory, byte[] pukCert, CardInfo cardInfo, CustomerInfo customerInfo, PosICReader icReader) throws Exception {
         byte[] signedData = null;
         byte[] signedHash = null;
         byte[] pukCertData = null;
@@ -352,9 +353,8 @@ public class Program {
                         signedData.length, signedTail.length);
                 }
 
-                String filePath = outputSignedDirField + "/" + elf.getFileName();
-
-//                NEWPOSUtil.writeOutBinaryFile(filePath, totalContent);
+                String filePath = outputDirectory + "/" + elf.getFileName();
+                writeOutBinaryFile(filePath, totalContent);
                 return 0;
             }
             if (receiveData.length == 2) {
@@ -368,7 +368,7 @@ public class Program {
         return -1;
     }
 
-    public static int startSignFileForAuth(FileELF elf, byte[] pukCert, CardInfo cardInfo, CustomerInfo customerInfo, PosICReader icReader) throws Exception {
+    public static int startSignFileForAuth(FileELF elf, String outputDirectory, byte[] pukCert, CardInfo cardInfo, CustomerInfo customerInfo, PosICReader icReader) throws Exception {
         byte[] signedData = null;
         byte[] signedHash = null;
         byte[] pukCertData = null;
@@ -481,11 +481,9 @@ public class Program {
                     System.arraycopy(signedTail, 0, totalContent, fileContent.length + 
                         signedData.length, signedTail.length);
                 }
-                
-                String filePath = outputSignedDirField + "/" + elf.getFileName();
-                
-//                TODO: NEWPOSUtil.writeOutBinaryFile(filePath, totalContent);
 
+                String filePath = outputDirectory + "/" + elf.getFileName();
+                writeOutBinaryFile(filePath, totalContent);
                 return 0;
             }
 
@@ -607,7 +605,8 @@ public class Program {
         return hash;
     }
     
-    public static byte[] getFileContent(String filePath)
+    @SuppressWarnings("resource")
+	public static byte[] getFileContent(String filePath)
     {
         byte[] content = null;
         try {
@@ -628,72 +627,189 @@ public class Program {
         return content;
     }
 
-    public static byte[] getNeededSignedFile(String filePath) throws FileNotFoundException
-    {
+    public static byte[] getNeededSignedFile(final String filePath) {
         byte[] content = null;
-        byte[] sig0001Tag = { 83, 73, 71, 58, 48, 48, 48, 49 };
-        byte[] sig0002Tag = { 83, 73, 71, 58, 48, 48, 48, 50 };
+        final byte[] sig0001Tag = { 83, 73, 71, 58, 48, 48, 48, 49 };
+        final byte[] sig0002Tag = { 83, 73, 71, 58, 48, 48, 48, 50 };
         FileInputStream fis = null;
         BufferedInputStream bis = null;
-
-        try
-        {
-            int fileLen;
-            byte[] signVersion;
-            int fromSkip;
-            return content;
+        try {
+            fis = new FileInputStream(filePath);
+            bis = new BufferedInputStream(fis);
+            try {
+                final int fileLen = bis.available();
+                final byte[] signVersion = new byte[8];
+                final int fromSkip = fileLen - 8;
+                bis.skip(fromSkip);
+                bis.read(signVersion, 0, 8);
+                if (Arrays.equals(sig0002Tag, signVersion)) {
+                    fis = new FileInputStream(filePath);
+                    bis = new BufferedInputStream(fis);
+                    content = new byte[fileLen - 1176];
+                    bis.read(content, 0, content.length);
+                }
+                else if (Arrays.equals(sig0001Tag, signVersion)) {
+                    fis = new FileInputStream(filePath);
+                    bis = new BufferedInputStream(fis);
+                    content = new byte[fileLen - 456];
+                    bis.read(content, 0, content.length);
+                }
+                else {
+                    fis = new FileInputStream(filePath);
+                    bis = new BufferedInputStream(fis);
+                    content = new byte[fileLen];
+                    bis.read(content, 0, fileLen);
+                }
+            }
+            catch (IOException e) {
+                e.printStackTrace();
+            }
         }
-        finally
-        {
+        catch (FileNotFoundException e2) {
+            e2.printStackTrace();
             if (fis != null) {
                 try {
                     fis.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
+                }
+                catch (IOException e3) {
+                    e3.printStackTrace();
                 }
             }
             if (bis != null) {
                 try {
                     bis.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
+                }
+                catch (IOException e3) {
+                    e3.printStackTrace();
+                }
+                return content;
+            }
+            return content;
+        }
+        finally {
+            if (fis != null) {
+                try {
+                    fis.close();
+                }
+                catch (IOException e3) {
+                    e3.printStackTrace();
+                }
+            }
+            if (bis != null) {
+                try {
+                    bis.close();
+                }
+                catch (IOException e3) {
+                    e3.printStackTrace();
                 }
             }
         }
+        if (fis != null) {
+            try {
+                fis.close();
+            }
+            catch (IOException e3) {
+                e3.printStackTrace();
+            }
+        }
+        if (bis != null) {
+            try {
+                bis.close();
+            }
+            catch (IOException e3) {
+                e3.printStackTrace();
+            }
+        }
+        return content;
     }
 
-    public static byte[] getNeededSigBinFile(String filePath) throws FileNotFoundException
-    {
+    public static byte[] getNeededSigBinFile(final String filePath) {
         byte[] content = null;
-        byte[] sigFmtVer = { 83, 73, 71, 95, 70, 77, 84, 95, 86, 69, 82, 58, 48, 48, 48, 50 };
+        final byte[] sigFmtVer = { 83, 73, 71, 95, 70, 77, 84, 95, 86, 69, 82, 58, 48, 48, 48, 50 };
         FileInputStream fis = null;
         BufferedInputStream bis = null;
-
-        try
-        {
-            int fileLen;
-            byte[] signVersion;
-            int fromSkip;
-
-            return content;
+        try {
+            fis = new FileInputStream(filePath);
+            bis = new BufferedInputStream(fis);
+            try {
+                final int fileLen = bis.available();
+                final byte[] signVersion = new byte[16];
+                final int fromSkip = fileLen - 16;
+                bis.skip(fromSkip);
+                bis.read(signVersion, 0, 16);
+                if (Arrays.equals(sigFmtVer, signVersion)) {
+                    fis = new FileInputStream(filePath);
+                    bis = new BufferedInputStream(fis);
+                    content = new byte[fileLen - 284];
+                    bis.read(content, 0, content.length);
+                }
+                else {
+                    fis = new FileInputStream(filePath);
+                    bis = new BufferedInputStream(fis);
+                    content = new byte[fileLen - 1];
+                    bis.read(content, 0, fileLen - 1);
+                }
+            }
+            catch (IOException e) {
+                e.printStackTrace();
+            }
         }
-        finally
-        {
+        catch (FileNotFoundException e2) {
+            e2.printStackTrace();
             if (fis != null) {
                 try {
                     fis.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
+                }
+                catch (IOException e3) {
+                    e3.printStackTrace();
                 }
             }
             if (bis != null) {
                 try {
                     bis.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
+                }
+                catch (IOException e3) {
+                    e3.printStackTrace();
+                }
+                return content;
+            }
+            return content;
+        }
+        finally {
+            if (fis != null) {
+                try {
+                    fis.close();
+                }
+                catch (IOException e3) {
+                    e3.printStackTrace();
+                }
+            }
+            if (bis != null) {
+                try {
+                    bis.close();
+                }
+                catch (IOException e3) {
+                    e3.printStackTrace();
                 }
             }
         }
+        if (fis != null) {
+            try {
+                fis.close();
+            }
+            catch (IOException e3) {
+                e3.printStackTrace();
+            }
+        }
+        if (bis != null) {
+            try {
+                bis.close();
+            }
+            catch (IOException e3) {
+                e3.printStackTrace();
+            }
+        }
+        return content;
     }
 
     public static byte[] getSignedTailContent(final CustomerInfo customerInfo, final FileELF elf) throws Exception {
@@ -770,12 +886,51 @@ public class Program {
         }
         return hash;
     }
+    
+    public static boolean writeOutBinaryFile(final String filePath, final byte[] content) {
+        DataOutputStream out = null;
+        final String dir = filePath.substring(0, filePath.lastIndexOf("/"));
+        File dirFile = null;
+        try {
+            dirFile = new File(dir);
+            if (!dirFile.exists()) {
+                dirFile.mkdirs();
+            }
+            out = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(filePath)));
+            try {
+                out.write(content);
+                out.flush();
+                return true;
+            }
+            catch (IOException e) {
+                e.printStackTrace();
+                return false;
+            }
+        }
+        catch (FileNotFoundException e2) {
+            e2.printStackTrace();
+            return false;
+        }
+        finally {
+            if (out != null) {
+                try {
+                    out.close();
+                }
+                catch (IOException e3) {
+                    e3.printStackTrace();
+                    return false;
+                }
+            }
+        }
+    }
 
     public static void main(String[] args) {
         PosICReader icReader = new PosICReader();
         if (icReader.open("/dev/cu.usbserial-AH01SKWE")) {
-        	icReader.cardPowerOn();
+            icReader.cardPowerOn();
         }
+        String fileName = "/Users/a13x/dev/newpos/iccsign/app";
+        String outputDir = "/Users/a13x/dev/newpos/signed";
 
         APDU apdu = new APDU();
         byte[] selectAPPResp = icReader.processAPDU(apdu.selectApplication("NEWPOS-CARD"));
@@ -788,11 +943,11 @@ public class Program {
 
             if (cardInfo != null && customerInfo != null) {
                 try {
-					signFile("/Users/a13x/dev/newpos/iccsign/app", cardInfo, customerInfo, icReader);
-				} catch (Exception e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+                    signFile(fileName, outputDir, cardInfo, customerInfo, icReader);
+                } catch (Exception e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
             }
         }
         
