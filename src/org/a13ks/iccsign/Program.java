@@ -8,6 +8,8 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
@@ -597,7 +599,7 @@ public class Program {
     }
     
     @SuppressWarnings("resource")
-	public static byte[] getFileContent(String filePath)
+    public static byte[] getFileContent(String filePath)
     {
         byte[] content = null;
         try {
@@ -916,19 +918,34 @@ public class Program {
     }
 
     public static Date getExpirationDate(Date today, int years) {
-    	Calendar cal = Calendar.getInstance();
-    	cal.setTime(today);
-    	cal.add(Calendar.YEAR, years);
-    	return cal.getTime();
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(today);
+        cal.add(Calendar.YEAR, years);
+        return cal.getTime();
     }
 
     public static void main(String[] args) {
+        if (args.length < 4) {
+            System.err.println("Not enough arguments provided");
+            return;
+        }
+
+        String portName = args[0]; // "/dev/cu.usbserial-AH01SKWE";
         PosICReader icReader = new PosICReader();
-        if (icReader.open("/dev/cu.usbserial-AH01SKWE")) {
+        if (icReader.open(portName)) {
             icReader.cardPowerOn();
         }
-        String fileName = "/Users/a13x/dev/newpos/iccsign/app";
-        String outputDir = "/Users/a13x/dev/newpos/signed";
+
+        String filePath = args[1];
+        String outputDir = args[2];
+        String version = args[3];
+
+        File file = new File(filePath);
+        String name = file.getName();
+        if (!file.exists()) {
+            System.err.println("File not found: " + filePath);
+            return;
+        }
 
         APDU apdu = new APDU();
         byte[] selectAPPResp = icReader.processAPDU(apdu.selectApplication("NEWPOS-CARD"));
@@ -941,14 +958,14 @@ public class Program {
 
             Date today = new Date();
             FileELF elf = new FileELF();
-            elf.setFileName("app");
+            elf.setFileName(name);
             elf.setFileType(FileELF.ET_APP);
             elf.setEffectiveDate(today);
             elf.setExpireDate(getExpirationDate(today, 10));
             elf.setUser("User0");
-            elf.setVersion("1.0.0");
+            elf.setVersion(version);
             elf.setNote("");
-            elf.setFilePath(fileName);
+            elf.setFilePath(filePath);
 
             if (cardInfo != null && customerInfo != null) {
                 try {
