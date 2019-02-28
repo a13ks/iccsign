@@ -123,8 +123,16 @@ public class Program {
     public static void signFile(String fileName, CardInfo cardInfo, CustomerInfo customerInfo, PosICReader icReader) throws Exception {
 
         FileELF elf = new FileELF();
+        elf.setFileName("app");
+        elf.setFileType("APP");
+        elf.setEffectiveDate("2019/02/28");
+        elf.setExpireDate("2019/03/28");
+        elf.setUser("User0");
+        elf.setVersion("1.0.0");
+        elf.setNote("");
+        elf.setFilePath(fileName);
 
-        int user = Integer.parseInt(elf.getUser().replace("User", ""));
+        int user = 0;
         userSeq = user;
         int flleTag = user + 32;
 
@@ -806,8 +814,7 @@ public class Program {
 
     public static void main(String[] args) {
         PosICReader icReader = new PosICReader();
-        if (icReader.open("/dev/cu.usbserial-AH01SKWE"))
-        {
+        if (icReader.open("/dev/cu.usbserial-AH01SKWE")) {
         	icReader.cardPowerOn();
         }
 
@@ -820,6 +827,14 @@ public class Program {
             CardInfo cardInfo = getCardInfo(icReader);
             CustomerInfo customerInfo = getCustomerInfo(icReader);
 
+            if (cardInfo != null && customerInfo != null) {
+                try {
+					signFile("/Users/a13x/dev/newpos/iccsign/app", cardInfo, customerInfo, icReader);
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+            }
         }
         
         icReader.cardPowerOff();
