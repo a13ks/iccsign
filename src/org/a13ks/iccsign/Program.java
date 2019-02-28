@@ -12,6 +12,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -73,7 +74,7 @@ public class Program {
         }
         return cardInfo;
     }
-    
+
     public static CustomerInfo getCustomerInfo(PosICReader icReader)
     {
         CustomerInfo customerInfo = null;
@@ -87,7 +88,7 @@ public class Program {
             if (customFileApdu.statusSW() == 0) {
                 byte[] readFileReq = customFileApdu.readFile((short)0);
                 byte[] customerBackData = icReader.processAPDU(readFileReq);
-    
+
                 if (customerBackData.length > 2) {
                     byte[] customerFileBackSW = new byte[2];
                     System.arraycopy(customerBackData, customerBackData.length - 2, 
@@ -123,17 +124,7 @@ public class Program {
     }
 
 
-    public static void signFile(String fileName, String outputDirectory, CardInfo cardInfo, CustomerInfo customerInfo, PosICReader icReader) throws Exception {
-        FileELF elf = new FileELF();
-        elf.setFileName("app");
-        elf.setFileType("APP");
-        elf.setEffectiveDate("2019/02/28");
-        elf.setExpireDate("2019/03/28");
-        elf.setUser("User0");
-        elf.setVersion("1.0.0");
-        elf.setNote("");
-        elf.setFilePath(fileName);
-
+    public static void signFile(FileELF elf, String outputDirectory, CardInfo cardInfo, CustomerInfo customerInfo, PosICReader icReader) throws Exception {
         int user = 0;
         int flleTag = user + 32;
 
@@ -924,6 +915,13 @@ public class Program {
         }
     }
 
+    public static Date getExpirationDate(Date today, int years) {
+    	Calendar cal = Calendar.getInstance();
+    	cal.setTime(today);
+    	cal.add(Calendar.YEAR, years);
+    	return cal.getTime();
+    }
+
     public static void main(String[] args) {
         PosICReader icReader = new PosICReader();
         if (icReader.open("/dev/cu.usbserial-AH01SKWE")) {
@@ -941,11 +939,21 @@ public class Program {
             CardInfo cardInfo = getCardInfo(icReader);
             CustomerInfo customerInfo = getCustomerInfo(icReader);
 
+            Date today = new Date();
+            FileELF elf = new FileELF();
+            elf.setFileName("app");
+            elf.setFileType(FileELF.ET_APP);
+            elf.setEffectiveDate(today);
+            elf.setExpireDate(getExpirationDate(today, 10));
+            elf.setUser("User0");
+            elf.setVersion("1.0.0");
+            elf.setNote("");
+            elf.setFilePath(fileName);
+
             if (cardInfo != null && customerInfo != null) {
                 try {
-                    signFile(fileName, outputDir, cardInfo, customerInfo, icReader);
+                    signFile(elf, outputDir, cardInfo, customerInfo, icReader);
                 } catch (Exception e) {
-                    // TODO Auto-generated catch block
                     e.printStackTrace();
                 }
             }

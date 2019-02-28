@@ -1,5 +1,9 @@
 package org.a13ks.iccsign;
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
 public class FileELF
 {
     public static final String ET_APP = "APP";
@@ -15,6 +19,8 @@ public class FileELF
     private String note;
     private String signedTag;
     private byte[] fileConent;
+
+    private static DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd");
     
     public String getFileName()
     {
@@ -57,10 +63,19 @@ public class FileELF
         this.effectiveDate = effectiveDate;
     }
     
+    public void setEffectiveDate(Date effectiveDate) {
+
+        this.effectiveDate = dateFormat.format(effectiveDate);
+    }
+    
     public String getExpireDate() {
         return this.expireDate;
     }
-    
+
+    public void setExpireDate(Date expireDate) {
+        this.expireDate = dateFormat.format(expireDate);
+    }
+
     public void setExpireDate(String expireDate) {
         this.expireDate = expireDate;
     }
@@ -103,37 +118,5 @@ public class FileELF
     
     public void setSignedTag(String signedTag) {
         this.signedTag = signedTag;
-    }
-
-    public void setFilePro(int column, String cellValue, FileELF elf)
-    {
-        switch (column) {
-        case 0: 
-            break;
-        case 1: 
-            elf.setFileName(cellValue);
-            break;
-        case 2: 
-            elf.setFileType(cellValue);
-            break;
-        case 3: 
-            elf.setEffectiveDate(cellValue);
-            break;
-        case 4: 
-            elf.setExpireDate(cellValue);
-            break;
-        case 5: 
-            elf.setUser(cellValue);
-            break;
-        case 6: 
-            elf.setVersion(cellValue);
-            break;
-        case 7: 
-            elf.setNote(cellValue);
-            break;
-        case 8: 
-            elf.setFilePath(cellValue);
-            break;
-        }
     }
 }
