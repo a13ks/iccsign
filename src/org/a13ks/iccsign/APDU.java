@@ -80,7 +80,7 @@ public class APDU
 
     public static byte[] buildCardAppVerINS()
     {
-        return new byte[] { 0, -54 };
+        return new byte[] { 0, -54, 0, 0, 0 };
     }
 
     public LinkedList<byte[]> buildDownloadAPDU(byte cla, byte ins, int fileTag, byte[] data)

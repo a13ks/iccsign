@@ -242,33 +242,8 @@ public class Program {
 //                            this.status = 0;
                             elf.setSignedTag(SIG[1]);
 //                            NEWPOSUtil.saveLog(NewposCardMain.this.customerInfo, elf);
-                        } else {
-
-//                            if (receiveData.length == 2) {
-//                                apdu.setSW(receiveData);
-//                                if (apdu.statusSW() == 253) {
-//                                    this.status = 253;
-//                                    return null;
-//                                }
-//                                if (apdu.statusSW() == 254) {
-//                                    this.status = 254;
-//                                    return null;
-//                                }
-//                                this.status = -1;
-//                                return null;
-//                            }
-//                            
-//                            this.status = -1;
-//                            return null;
                         }
-                        
-                    } else {
-//                        this.status = -2;
-//                        return null;
                     }
-                } else {
-//                    this.status = -1;
-//                    return null;
                 }
             }
         } else if (SIG[0].equals(sigVersion)) {
@@ -721,75 +696,59 @@ public class Program {
         }
     }
 
-    public static byte[] getSignedTailContent(CustomerInfo customerInfo, FileELF elf) throws Exception
-    {
-        byte[] tail = new byte['�'];
-        
+    public static byte[] getSignedTailContent(final CustomerInfo customerInfo, final FileELF elf) throws Exception {
+        final byte[] tail = new byte[200];
         byte[] type = new byte[4];
-        
-        byte[] cid = customerInfo.getCid();
-        byte[] approvier = customerInfo.getName();
-        
-        byte userID = Byte.parseByte(elf.getUser().replace("User", ""));
-        
+        final byte[] cid = customerInfo.getCid();
+        final byte[] approvier = customerInfo.getName();
+        final byte userID = Byte.parseByte(elf.getUser().replace("User", ""));
         if ("APP".equals(elf.getFileType())) {
             type = new byte[] { 6, userID, cid[1], cid[0] };
-        } else if ("LIB".equals(elf.getFileType())) {
+        }
+        else if ("LIB".equals(elf.getFileType())) {
             type = new byte[] { 4, userID, cid[1], cid[0] };
         }
-        
-
-        byte[] effectiveTime = getSpecDateSecond(elf.getEffectiveDate().replace("/", "").replace(" ", ""));
-        
-        byte[] expirationTime = getSpecDateSecond(elf.getExpireDate().replace("/", "").replace(" ", ""));
-        
-        byte[] appName = new byte[64];
-        byte[] currentName = elf.getFileName().getBytes();
-        if (currentName.length <= 64) {
-            System.arraycopy(currentName, 0, appName, 0, currentName.length);
-        } else {
+        final byte[] effectiveTime = getSpecDateSecond(elf.getEffectiveDate().replace("/", "").replace(" ", ""));
+        final byte[] expirationTime = getSpecDateSecond(elf.getExpireDate().replace("/", "").replace(" ", ""));
+        final byte[] appName = new byte[64];
+        final byte[] currentName = elf.getFileName().getBytes();
+        if (currentName.length > 64) {
             throw new Exception("APP name should not more than 64 characters");
         }
-
+        System.arraycopy(currentName, 0, appName, 0, currentName.length);
         byte[] appVersion = new byte[4];
-        String[] version = elf.getVersion().replace(".", "-").split("-");
-        appVersion = new byte[] { 0, Byte.parseByte(version[0]), Byte.parseByte(version[1]), 
-            Byte.parseByte(version[2]) };
-
-        byte[] reserve = new byte[44];
-        byte[] note = elf.getNote().getBytes("GBK");
+        final String[] version = elf.getVersion().replace(".", "-").split("-");
+        appVersion = new byte[] { 0, Byte.parseByte(version[0]), Byte.parseByte(version[1]), Byte.parseByte(version[2]) };
+        final byte[] reserve = new byte[44];
+        final byte[] note = elf.getNote().getBytes("GBK");
         if (note.length <= 44) {
             System.arraycopy(note, 0, reserve, 0, note.length);
-        } else {
-            throw new Exception("Note should not more than 44 characters");
+            final byte[] signatureLength = { 1, 0 };
+            final byte[] signedTailLength = { 0, -56 };
+            byte[] signedFlag = null;
+            if (SIG[1].equals(sigVersion)) {
+                signedFlag = "SIG:0002".getBytes();
+            }
+            else if (SIG[0].equals(sigVersion)) {
+                signedFlag = "SIG:0001".getBytes();
+            }
+            reverseArray(effectiveTime);
+            reverseArray(expirationTime);
+            reverseArray(signatureLength);
+            reverseArray(signedTailLength);
+            System.arraycopy(type, 0, tail, 0, 4);
+            System.arraycopy(effectiveTime, 0, tail, 4, 4);
+            System.arraycopy(expirationTime, 0, tail, 8, 4);
+            System.arraycopy(appName, 0, tail, 12, 64);
+            System.arraycopy(approvier, 0, tail, 76, 64);
+            System.arraycopy(appVersion, 0, tail, 140, 4);
+            System.arraycopy(reserve, 0, tail, 144, 44);
+            System.arraycopy(signatureLength, 0, tail, 188, 2);
+            System.arraycopy(signedTailLength, 0, tail, 190, 2);
+            System.arraycopy(signedFlag, 0, tail, 192, 8);
+            return tail;
         }
-
-        byte[] signatureLength = { 1 };
-        byte[] signedTailLength = { 0, -56 };
-        byte[] signedFlag = null;
-        if (SIG[1].equals(sigVersion)) {
-            signedFlag = "SIG:0002".getBytes();
-        } else if (SIG[0].equals(sigVersion)) {
-            signedFlag = "SIG:0001".getBytes();
-        }
-
-        reverseArray(effectiveTime);
-        reverseArray(expirationTime);
-        reverseArray(signatureLength);
-        reverseArray(signedTailLength);
-
-        System.arraycopy(type, 0, tail, 0, 4);
-        System.arraycopy(effectiveTime, 0, tail, 4, 4);
-        System.arraycopy(expirationTime, 0, tail, 8, 4);
-        System.arraycopy(appName, 0, tail, 12, 64);
-        System.arraycopy(approvier, 0, tail, 76, 64);
-        System.arraycopy(appVersion, 0, tail, 140, 4);
-        System.arraycopy(reserve, 0, tail, 144, 44);
-        System.arraycopy(signatureLength, 0, tail, 188, 2);
-        System.arraycopy(signedTailLength, 0, tail, 190, 2);
-        System.arraycopy(signedFlag, 0, tail, 192, 8);
-        
-        return tail;
+        throw new Exception("Note should not more than 44 characters");
     }
 
     public static byte[] getCurrentSecond()
