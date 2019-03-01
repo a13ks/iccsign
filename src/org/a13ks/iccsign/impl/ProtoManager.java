@@ -10,7 +10,7 @@ import org.a13ks.iccsign.DataChangeEvent;
 
 public class ProtoManager implements DataChangeEvent.DataResponse
 {
-    private final int SEQ_START = 4097;
+	private final int SEQ_START = 4097;
     private int timeout;
     private PosConnectDao posConnectDao;
     DataChangeEvent.DataResponse protoCallback;
@@ -44,8 +44,8 @@ public class ProtoManager implements DataChangeEvent.DataResponse
     
     public ProtoManager(final PosConnectDao connectDao) {
         this.timeout = 2;
-        this.pktSequence = 4097;
-        this.recvNextSeq = 4097;
+        this.pktSequence = SEQ_START;
+        this.recvNextSeq = SEQ_START;
         this.ackedPktSeq = 0;
         this.restartSent = false;
         this.recvCacheIdx = 0;
@@ -187,9 +187,9 @@ public class ProtoManager implements DataChangeEvent.DataResponse
         if (pkt.verifyCheckSum() != 0) {
             return;
         }
-        if (pkt.getRestartFlag() != 0 && (this.ackedPktSeq >= 4097 || this.recvNextSeq > 4097)) {
-            this.pktSequence = 4097;
-            this.recvNextSeq = 4097;
+        if (pkt.getRestartFlag() != 0 && (this.ackedPktSeq >= SEQ_START || this.recvNextSeq > SEQ_START)) {
+            this.pktSequence = SEQ_START;
+            this.recvNextSeq = SEQ_START;
         }
         if (!pkt.isAckType()) {
             if (pkt.getSequence() > this.recvNextSeq) {

@@ -8,8 +8,6 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
@@ -27,7 +25,6 @@ public class Program {
     public static volatile String sigVersion = "V02";
     public static final String[] SIG = { "V01", "V02" };
 
-    private static Map<Integer, byte[]> userCertMap = new HashMap<Integer, byte[]>();
     private static byte[] tmpData = null;
     private static Random random = new Random();
 
@@ -131,112 +128,80 @@ public class Program {
         int flleTag = user + 32;
 
         if (SIG[1].equals(sigVersion)) {
-            if ((userCertMap != null) && (userCertMap.get(Integer.valueOf(user)) != null))
-            {
-                int statusCode = 0;
-                int ver = 0;
-                byte[] verBytes = icReader.processAPDU(APDU.buildCardAppVerINS());
-                if (verBytes.length >= 3) {
-                    try {
-                        String verStr = bytesToHexString(verBytes);
-                        ver = Integer.parseInt(verStr.substring(0, 6));
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                }
-                System.err.println("ver:" + ver);
-                if (ver >= 30000) {
-                    statusCode = startSignFileForAuth(elf, outputDirectory, (byte[])userCertMap.get(Integer.valueOf(user)), cardInfo, customerInfo, icReader);
-                } else {
-                    statusCode = startSignFile(elf, outputDirectory, (byte[])userCertMap.get(Integer.valueOf(user)), cardInfo, customerInfo, icReader);
-                }
-                if (statusCode == 0)
-                {
-//                    setProgress(this.seq);
-//                    this.seq += 1;
-//                    this.status = 0;
-                    elf.setSignedTag(SIG[1]);
-//                    NEWPOSUtil.saveLog(NewposCardMain.this.customerInfo, elf);
-                } else {
-//                    this.status = -1;
-//                    return null;
-                }
-            } else {
-                APDU apdu = new APDU();
-                int pukLength = 0;
-                byte[] pukCertData = null;
-                byte[] selectFileReq = apdu.selectFile((short)flleTag);
-                byte[] receiveData = icReader.processAPDU(selectFileReq);
+            APDU apdu = new APDU();
+            int pukLength = 0;
+            byte[] pukCertData = null;
+            byte[] selectFileReq = apdu.selectFile((short)flleTag);
+            byte[] receiveData = icReader.processAPDU(selectFileReq);
+            Map<Integer, byte[]> userCertMap = new HashMap<Integer, byte[]>();
 
-                if (receiveData.length == 2) {
-                    byte[] sw = receiveData;
-                    apdu.setSW(sw);
-                    
-                    if (apdu.statusSW() == 0) {
-                        for (;;) {
-                            byte[] readCertReq = apdu.readFile((short)0);
-                            receiveData = icReader.processAPDU(readCertReq);
+            if (receiveData.length == 2) {
+                byte[] sw = receiveData;
+                apdu.setSW(sw);
+                
+                if (apdu.statusSW() == 0) {
+                    for (;;) {
+                        byte[] readCertReq = apdu.readFile((short)0);
+                        receiveData = icReader.processAPDU(readCertReq);
 
 //                            if (receiveData.length <= 2) break label854;
-                            sw = new byte[2];
-                            System.arraycopy(receiveData, 
-                                receiveData.length - 2, sw, 0, 2);
-                            apdu.setSW(sw);
-                            
-                            int dataLength = receiveData.length - 2;
+                        sw = new byte[2];
+                        System.arraycopy(receiveData, 
+                            receiveData.length - 2, sw, 0, 2);
+                        apdu.setSW(sw);
+                        
+                        int dataLength = receiveData.length - 2;
 //                            if (apdu.statusSW() != 0) break label847;
-                            if (dataLength != 255)
-                                break;
-                            byte[] data = new byte[receiveData.length - 2];
-                            System.arraycopy(receiveData, 0, data, 0, 
-                                data.length);
-                            
-                            int len = pukLength;
-                            pukLength += data.length;
-                            pukCertData = new byte[pukLength];
-                            if (tmpData != null)
-                                System.arraycopy(tmpData, 0, 
-                                    pukCertData, 0, tmpData.length);
-                            System.arraycopy(data, 0, pukCertData, len, 
-                                data.length);
-                            tmpData = pukCertData;
-                        }
-
+                        if (dataLength != 255)
+                            break;
                         byte[] data = new byte[receiveData.length - 2];
                         System.arraycopy(receiveData, 0, data, 0, 
                             data.length);
-
+                        
+                        int len = pukLength;
                         pukLength += data.length;
                         pukCertData = new byte[pukLength];
-                        System.arraycopy(tmpData, 0, pukCertData, 0, tmpData.length);
-                        System.arraycopy(data, 0, pukCertData, tmpData.length, data.length);
-                        tmpData = null;
-                        userCertMap.put(Integer.valueOf(user), pukCertData);
+                        if (tmpData != null)
+                            System.arraycopy(tmpData, 0, 
+                                pukCertData, 0, tmpData.length);
+                        System.arraycopy(data, 0, pukCertData, len, 
+                            data.length);
+                        tmpData = pukCertData;
+                    }
 
-                        int statusCode = 0;
-                        int ver = 0;
-                        byte[] verBytes = icReader.processAPDU(APDU.buildCardAppVerINS());
-                        if (verBytes.length >= 3) {
-                            try {
-                                String verStr = bytesToHexString(verBytes);
-                                ver = Integer.parseInt(verStr.substring(0, 6));
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                            }
+                    byte[] data = new byte[receiveData.length - 2];
+                    System.arraycopy(receiveData, 0, data, 0, 
+                        data.length);
+
+                    pukLength += data.length;
+                    pukCertData = new byte[pukLength];
+                    System.arraycopy(tmpData, 0, pukCertData, 0, tmpData.length);
+                    System.arraycopy(data, 0, pukCertData, tmpData.length, data.length);
+                    tmpData = null;
+                    userCertMap.put(Integer.valueOf(user), pukCertData);
+
+                    int statusCode = 0;
+                    int ver = 0;
+                    byte[] verBytes = icReader.processAPDU(APDU.buildCardAppVerINS());
+                    if (verBytes.length >= 3) {
+                        try {
+                            String verStr = bytesToHexString(verBytes);
+                            ver = Integer.parseInt(verStr.substring(0, 6));
+                        } catch (Exception e) {
+                            e.printStackTrace();
                         }
-                        System.err.println("ver:" + ver);
-                        if (ver >= 30000) {
-                            statusCode = startSignFileForAuth(elf, outputDirectory, pukCertData, cardInfo, customerInfo, icReader);
-                        } else {
-                            statusCode = startSignFile(elf, outputDirectory, pukCertData, cardInfo, customerInfo, icReader);
-                        }
-                        if (statusCode == 0) {
+                    }
+                    System.err.println("ver:" + ver);
+                    if (ver >= 30000) {
+                        statusCode = startSignFileForAuth(elf, outputDirectory, pukCertData, cardInfo, customerInfo, icReader);
+                    } else {
+                        statusCode = startSignFile(elf, outputDirectory, pukCertData, cardInfo, customerInfo, icReader);
+                    }
+                    if (statusCode == 0) {
 //                            setProgress(this.seq);
 //                            this.seq += 1;
 //                            this.status = 0;
-                            elf.setSignedTag(SIG[1]);
-//                            NEWPOSUtil.saveLog(NewposCardMain.this.customerInfo, elf);
-                        }
+                        elf.setSignedTag(SIG[1]);
                     }
                 }
             }
@@ -660,112 +625,6 @@ public class Program {
         }
         catch (FileNotFoundException e2) {
             e2.printStackTrace();
-            if (fis != null) {
-                try {
-                    fis.close();
-                }
-                catch (IOException e3) {
-                    e3.printStackTrace();
-                }
-            }
-            if (bis != null) {
-                try {
-                    bis.close();
-                }
-                catch (IOException e3) {
-                    e3.printStackTrace();
-                }
-                return content;
-            }
-            return content;
-        }
-        finally {
-            if (fis != null) {
-                try {
-                    fis.close();
-                }
-                catch (IOException e3) {
-                    e3.printStackTrace();
-                }
-            }
-            if (bis != null) {
-                try {
-                    bis.close();
-                }
-                catch (IOException e3) {
-                    e3.printStackTrace();
-                }
-            }
-        }
-        if (fis != null) {
-            try {
-                fis.close();
-            }
-            catch (IOException e3) {
-                e3.printStackTrace();
-            }
-        }
-        if (bis != null) {
-            try {
-                bis.close();
-            }
-            catch (IOException e3) {
-                e3.printStackTrace();
-            }
-        }
-        return content;
-    }
-
-    public static byte[] getNeededSigBinFile(final String filePath) {
-        byte[] content = null;
-        final byte[] sigFmtVer = { 83, 73, 71, 95, 70, 77, 84, 95, 86, 69, 82, 58, 48, 48, 48, 50 };
-        FileInputStream fis = null;
-        BufferedInputStream bis = null;
-        try {
-            fis = new FileInputStream(filePath);
-            bis = new BufferedInputStream(fis);
-            try {
-                final int fileLen = bis.available();
-                final byte[] signVersion = new byte[16];
-                final int fromSkip = fileLen - 16;
-                bis.skip(fromSkip);
-                bis.read(signVersion, 0, 16);
-                if (Arrays.equals(sigFmtVer, signVersion)) {
-                    fis = new FileInputStream(filePath);
-                    bis = new BufferedInputStream(fis);
-                    content = new byte[fileLen - 284];
-                    bis.read(content, 0, content.length);
-                }
-                else {
-                    fis = new FileInputStream(filePath);
-                    bis = new BufferedInputStream(fis);
-                    content = new byte[fileLen - 1];
-                    bis.read(content, 0, fileLen - 1);
-                }
-            }
-            catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-        catch (FileNotFoundException e2) {
-            e2.printStackTrace();
-            if (fis != null) {
-                try {
-                    fis.close();
-                }
-                catch (IOException e3) {
-                    e3.printStackTrace();
-                }
-            }
-            if (bis != null) {
-                try {
-                    bis.close();
-                }
-                catch (IOException e3) {
-                    e3.printStackTrace();
-                }
-                return content;
-            }
             return content;
         }
         finally {
